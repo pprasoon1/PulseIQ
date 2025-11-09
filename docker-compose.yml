@@ -24,6 +24,7 @@ services:
       - MONGO_URI=mongodb://mongo:27017/
       # --- ADD YOUR API KEYS HERE ---
       - GNEWS_API_KEY=YOUR_GNEWS_API_KEY_HERE
+      - X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAPA%2F4QEAAAAA1cIIVhHKbHD3%2B975m8%2F1vqptgVo%3D2H9JlfytKiZpQ302qB3OOGKt9ZF1vSHVK8gscvMGjPaNtj1ygs
     depends_on:
       - redis
     volumes:
@@ -42,6 +43,7 @@ services:
       - REDDIT_CLIENT_ID=DnghIru_UZlLedJWBJ8_SQ
       - REDDIT_CLIENT_SECRET=TMq72f7AQNeQMaCVSVaJ5xqhVqXrkA
       - REDDIT_USER_AGENT=Foresight
+      - X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAPA%2F4QEAAAAA1cIIVhHKbHD3%2B975m8%2F1vqptgVo%3D2H9JlfytKiZpQ302qB3OOGKt9ZF1vSHVK8gscvMGjPaNtj1ygs
     depends_on:
       - redis
       - mongo
