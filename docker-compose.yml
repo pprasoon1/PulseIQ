@@ -1,0 +1,52 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pulseiq-redis
+    ports:
+      - "6379:6379"
+
+  mongo:
+    image: mongo:latest
+    container_name: pulseiq-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  # NEW: The scheduler for our autonomous engine
+  ingestion-beat:
+    container_name: pulseiq-ingestion-beat
+    build:
+      context: ./services/ingestion_service # Use your underscore_name
+    command: celery -A app.tasks beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MONGO_URI=mongodb://mongo:27017/
+      # --- ADD YOUR API KEYS HERE ---
+      - GNEWS_API_KEY=YOUR_GNEWS_API_KEY_HERE
+    depends_on:
+      - redis
+    volumes:
+      - ./services/ingestion_service:/app
+
+  ingestion-worker:
+    container_name: pulseiq-ingestion-worker
+    build:
+      context: ./services/ingestion_service # Use your underscore_name
+    command: celery -A app.tasks worker --loglevel=info -c 1 # Concurrency 1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MONGO_URI=mongodb://mongo:27017/
+      # --- ADD YOUR API KEYS HERE ---
+      - GNEWS_API_KEY=39499bc3ea373a368eee75f65b5d6e8c
+      - REDDIT_CLIENT_ID=DnghIru_UZlLedJWBJ8_SQ
+      - REDDIT_CLIENT_SECRET=TMq72f7AQNeQMaCVSVaJ5xqhVqXrkA
+      - REDDIT_USER_AGENT=Foresight
+    depends_on:
+      - redis
+      - mongo
+    volumes:
+      - ./services/ingestion_service:/app
+
+volumes:
+  mongo-data:

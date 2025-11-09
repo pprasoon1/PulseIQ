@@ -1,0 +1,8 @@
+celery
+redis
+pymongo
+requests
+beautifulsoup4
+praw        
+gnews   
+python-dotenv 
