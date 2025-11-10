@@ -6,3 +6,4 @@ beautifulsoup4
 praw        
 gnews   
 python-dotenv 
+tweepy

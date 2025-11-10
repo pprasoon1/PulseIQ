@@ -12,6 +12,16 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+  
+  nlp-service:
+    container_name: pulseiq-nlp-service
+    build:
+      context: ./services/nlp-service
+    ports:
+      - "8001:8001" # Expose on port 8001
+    command: uvicorn main:app --host 0.0.0.0 --port 8001
+    volumes:
+      - ./services/nlp-service:/app # Mount code for live-reloading
 
   # NEW: The scheduler for our autonomous engine
   ingestion-beat:
@@ -27,6 +37,7 @@ services:
       - X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAPA%2F4QEAAAAA1cIIVhHKbHD3%2B975m8%2F1vqptgVo%3D2H9JlfytKiZpQ302qB3OOGKt9ZF1vSHVK8gscvMGjPaNtj1ygs
     depends_on:
       - redis
+      - nlp-service
     volumes:
       - ./services/ingestion_service:/app
 
@@ -47,6 +58,7 @@ services:
     depends_on:
       - redis
       - mongo
+      - nlp-service
     volumes:
       - ./services/ingestion_service:/app
 

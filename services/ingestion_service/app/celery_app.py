@@ -11,17 +11,22 @@ app = Celery(
     include=['app.tasks']
 )
 
-# --- NEW: Define the autonomous schedule ---
 app.conf.beat_schedule = {
-    # The main autonomous engine, runs every 1 hour 
+    # The main autonomous engine, runs every 1 hour
     'discover-manage-loop': {
         'task': 'discover_and_manage_topics',
-        'schedule': crontab(minute='0', hour='*'), # Run at the top of every hour
+        'schedule': crontab(minute='0', hour='*'), 
     },
-    # You can add more tasks, e.g., a "fast-loop" every 10 mins
+    # The "fast-loop" for scraping, every 10 mins
     'fast-topic-loop': {
         'task': 'collect_hot_topics',
-        'schedule': crontab(minute='*/10'), # Run every 10 minutes
+        'schedule': crontab(minute='*/10'),
+    },
+    # --- NEW NLP TASK ---
+    # Runs every 1 minute to process raw posts
+    'process-raw-posts-loop': {
+        'task': 'process_raw_posts',
+        'schedule': crontab(minute='*/1'), # Run every minute
     }
 }
 

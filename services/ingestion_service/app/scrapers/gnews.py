@@ -1,31 +1,34 @@
 import os
 from gnews import GNews
-import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 
-# This scraper will be used for both discovery (top news)
-# and for collecting news on a specific topic.
 
-# REPLACE WITH THIS:
 class GNewsScraper:
+    """
+    This scraper uses the GNews API to:
+      - Discover trending topics from top news sources
+      - Scrape recent news articles for a specific topic
+    """
+
     def __init__(self):
-        # We read the API key from the environment
+        # Read the API key from environment variables
         self.api_key = os.environ.get('GNEWS_API_KEY')
+
         if not self.api_key:
             print("Warning: GNEWS_API_KEY not set. GNews scraper will not work.")
             self.google_news = None
         else:
-            self.google_news = GNews() # <-- 1. Create it empty
-            self.google_news.api_key = self.api_key # <-- 2. Set the key here
+            # Initialize GNews client
+            self.google_news = GNews()
+            self.google_news.api_key = self.api_key
             self.google_news.language = 'en'
             self.google_news.country = 'US'
             self.google_news.max_results = 20
 
     def get_top_topics(self):
         """
-        Used by the autonomous engine to find new 'hot' topics.
-        NEW: This now discovers *source names* (e.g., 'Reuters', 'Politico')
-        and adds them as topics.
+        Discover top news sources (used by the autonomous engine).
+        Returns a list of unique source names (e.g., 'Reuters', 'BBC News').
         """
         if not self.google_news:
             return []
@@ -33,7 +36,7 @@ class GNewsScraper:
         try:
             news = self.google_news.get_top_news()
 
-            # Use a set to avoid duplicate source names
+            # Extract unique source names
             topics = set()
             for article in news:
                 source_name = article.get('source', {}).get('name')
@@ -41,39 +44,47 @@ class GNewsScraper:
                     topics.add(source_name)
 
             print(f"Discovered {len(topics)} hot topics (sources) from GNews: {topics}")
-            return list(topics) # Return as a list
+            return list(topics)
 
         except Exception as e:
             print(f"Error fetching top GNews topics: {e}")
             return []
 
     def scrape_topic(self, topic: str):
-
-        """Used by the worker to get news for a specific topic."""
+        """
+        Fetch recent articles for a given topic.
+        Returns a list of normalized article dictionaries ready for MongoDB.
+        """
         if not self.google_news:
             return []
-            
+
         print(f"GNews: Scraping for '{topic}'")
         try:
             articles = self.google_news.get_news(topic)
-            normalized_posts = []
-            for article in articles:
-                normalized_posts.append(self.normalize_article(article, topic))
+            normalized_posts = [
+                self.normalize_article(article, topic)
+                for article in articles
+            ]
             return normalized_posts
         except Exception as e:
             print(f"Error scraping GNews for topic '{topic}': {e}")
             return []
 
     def normalize_article(self, article: dict, topic: str):
-        """Converts GNews article format to our standard DB format."""
-
-        # Try to parse the date string
+        """
+        Convert a GNews article to the standard PulseIQ post format.
+        Handles missing timestamps safely.
+        """
         try:
-            timestamp = datetime.strptime(article.get('published at'), '%Y-%m-%dT%H:%M:%SZ')
+            # Parse published date if available
+            published_at = article.get('published at')
+            if published_at:
+                timestamp = datetime.strptime(published_at, '%Y-%m-%dT%H:%M:%SZ')
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            else:
+                timestamp = datetime.now(timezone.utc)
         except (ValueError, TypeError):
-            # If parsing fails or date is missing, use current time as a fallback
-            timestamp = datetime.datetime.now(datetime.timezone.utc)
-
+            timestamp = datetime.now(timezone.utc)
 
         return {
             "topic": topic,
@@ -81,10 +92,10 @@ class GNewsScraper:
             "source_id": article.get('url'),
             "text": f"{article.get('title', '')}. {article.get('description', '')}",
             "url": article.get('url'),
-            "timestamp": timestamp, # Use the parsed timestamp
+            "timestamp": timestamp,
             "metadata": {
                 "source_name": article.get('source', {}).get('name'),
                 "publisher": article.get('publisher', {}).get('title'),
                 "image": article.get('image'),
-            }
+            },
         }
