@@ -21,6 +21,23 @@ except Exception as e:
     sentiment_pipeline = None
     emotion_pipeline = None
 
+# --- NEW: Label Mapping Dictionaries ---
+SENTIMENT_MAP = {
+    "LABEL_0": "NEGATIVE",
+    "LABEL_1": "NEUTRAL",
+    "LABEL_2": "POSITIVE"
+}
+
+EMOTION_MAP = {
+    "anger": "ANGER",
+    "disgust": "DISGUST",
+    "fear": "FEAR",
+    "joy": "JOY",
+    "neutral": "NEUTRAL",
+    "sadness": "SADNESS",
+    "surprise": "SURPRISE"
+}
+
 # --- 2. Define Request & Response Data Models ---
 class PostIn(BaseModel):
     """The data we expect to receive for one post."""
@@ -62,22 +79,23 @@ async def process_posts(posts: List[PostIn]):
         return []
 
     results = []
-    
-    # Get all texts for batch processing (more efficient)
     texts = [post.text for post in posts]
 
     try:
-        # Run batch analysis
-        sentiments = sentiment_pipeline(texts)
-        emotions = emotion_pipeline(texts)
+        sentiments = sentiment_pipeline(texts, truncation=True, max_length=512)
+        emotions = emotion_pipeline(texts, truncation=True, max_length=512)
         
-        # Combine results
         for post, sentiment, emotion in zip(posts, sentiments, emotions):
+            
+            # --- FIX: Use the map to get clean labels ---
+            clean_sentiment = SENTIMENT_MAP.get(sentiment['label'], "UNKNOWN")
+            clean_emotion = EMOTION_MAP.get(emotion['label'], "UNKNOWN")
+            
             results.append(
                 PostOut(
                     post_id=post.post_id,
-                    sentiment=SentimentOut(label=sentiment['label'], score=sentiment['score']),
-                    emotion=EmotionOut(label=emotion['label'], score=emotion['score'])
+                    sentiment=SentimentOut(label=clean_sentiment, score=sentiment['score']),
+                    emotion=EmotionOut(label=clean_emotion, score=emotion['score'])
                 )
             )
             

@@ -12,54 +12,57 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
-  
+
+  # --- MODIFIED: Added healthcheck ---
   nlp-service:
     container_name: pulseiq-nlp-service
     build:
       context: ./services/nlp-service
     ports:
-      - "8001:8001" # Expose on port 8001
+      - "8001:8001"
     command: uvicorn main:app --host 0.0.0.0 --port 8001
     volumes:
-      - ./services/nlp-service:/app # Mount code for live-reloading
-  
-  # --- NEW: TimescaleDB (PostgreSQL + Timescale) ---
+      - ./services/nlp-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   timescaledb:
-    image: timescaledb/timescaledb:latest-pg14
+    image: timescale/timescaledb:latest-pg14
     container_name: pulseiq-timescaledb
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres # Use a strong password in prod
+      - POSTGRES_PASSWORD=postgres
     ports:
       - "5432:5432"
     volumes:
-      - ./init-timescale/init.sql:/docker-entrypoint-initdb.d/init.sql # Runs init script
-      - timescale-data:/var/lib/postgresql/data # Persists data
+      - ./init-timescale/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - timescale-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # --- NEW: Elasticsearch ---
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
     container_name: pulseiq-elasticsearch
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false # Easiest for development
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Limit memory usage
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
     volumes:
-      - es-data:/usr/share/elasticsearch/data # Persists data
+      - es-data:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:9200/_cluster/health?wait_for_status=yellow"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # --- NEW: API Service (The Hub) ---
   api-service:
     container_name: pulseiq-api-service
     build:
@@ -75,58 +78,71 @@ services:
       redis:
         condition: service_started
       timescaledb:
-        condition: service_healthy # Wait for DB to be ready
+        condition: service_healthy
       elasticsearch:
-        condition: service_healthy # Wait for ES to be ready
+        condition: service_healthy
     volumes:
       - ./services/api-service/app:/app/app
 
-  # NEW: The scheduler for our autonomous engine
+  # --- MODIFIED: Added healthy conditions ---
   ingestion-beat:
     container_name: pulseiq-ingestion-beat
     build:
-      context: ./services/ingestion_service # Use your underscore_name
+      context: ./services/ingestion_service
     command: celery -A app.tasks beat --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MONGO_URI=mongodb://mongo:27017/
-      # --- ADD YOUR API KEYS HERE ---
-      - GNEWS_API_KEY=YOUR_GNEWS_API_KEY_HERE
-      - X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAPA%2F4QEAAAAA1cIIVhHKbHD3%2B975m8%2F1vqptgVo%3D2H9JlfytKiZpQ302qB3OOGKt9ZF1vSHVK8gscvMGjPaNtj1ygs
+      - TIMESCALE_DB_URL=postgresql://postgres:postgres@timescaledb:5432/pulseiq_api_db
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - GNEWS_API_KEY=${GNEWS_API_KEY}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
+      - X_BEARER_TOKEN=${X_BEARER_TOKEN}
     depends_on:
-      - redis
-      - nlp-service
-      - timescaledb   # <-- ADD THIS
-      - elasticsearch # <-- ADD THIS
+      redis:
+        condition: service_started
+      nlp-service:
+        condition: service_healthy # <-- WAITS for NLP service
+      timescaledb:
+        condition: service_healthy # <-- WAITS for Timescale
+      elasticsearch:
+        condition: service_healthy # <-- WAITS for Elasticsearch
     volumes:
       - ./services/ingestion_service:/app
 
+  # --- MODIFIED: Added healthy conditions ---
   ingestion-worker:
     container_name: pulseiq-ingestion-worker
     build:
-      context: ./services/ingestion_service # Use your underscore_name
-    command: celery -A app.tasks worker --loglevel=info -c 1 # Concurrency 1
+      context: ./services/ingestion_service
+    command: celery -A app.tasks worker --loglevel=info -c 1
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MONGO_URI=mongodb://mongo:27017/
-      # --- ADD YOUR API KEYS HERE ---
-      - GNEWS_API_KEY=39499bc3ea373a368eee75f65b5d6e8c
-      - REDDIT_CLIENT_ID=DnghIru_UZlLedJWBJ8_SQ
-      - REDDIT_CLIENT_SECRET=TMq72f7AQNeQMaCVSVaJ5xqhVqXrkA
-      - REDDIT_USER_AGENT=Foresight
-      - X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAPA%2F4QEAAAAA1cIIVhHKbHD3%2B975m8%2F1vqptgVo%3D2H9JlfytKiZpQ302qB3OOGKt9ZF1vSHVK8gscvMGjPaNtj1ygs
+      - TIMESCALE_DB_URL=postgresql://postgres:postgres@timescaledb:5432/pulseiq_api_db
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - GNEWS_API_KEY=${GNEWS_API_KEY}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
+      - X_BEARER_TOKEN=${X_BEARER_TOKEN}
     depends_on:
-      - redis
-      - mongo
-      - nlp-service
-      - timescaledb   # <-- ADD THIS
-      - elasticsearch # <-- ADD THIS
+      redis:
+        condition: service_started
+      mongo:
+        condition: service_started
+      nlp-service:
+        condition: service_healthy # <-- WAITS for NLP service
+      timescaledb:
+        condition: service_healthy # <-- WAITS for Timescale
+      elasticsearch:
+        condition: service_healthy # <-- WAITS for Elasticsearch
     volumes:
       - ./services/ingestion_service:/app
 
 volumes:
   mongo-data:
-  timescale-data: # <-- NEW PERSISTENT VOLUME
-  es-data:        # <-- NEW PERSISTENT VOLUME
-
-
+  timescale-data:
+  es-data:

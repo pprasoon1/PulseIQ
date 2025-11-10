@@ -4,6 +4,8 @@ import os
 
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
+
+
 app = Celery(
     'ingestion_tasks',
     broker=redis_url,
@@ -12,23 +14,31 @@ app = Celery(
 )
 
 app.conf.beat_schedule = {
-    # The main autonomous engine, runs every 1 hour
     'discover-manage-loop': {
         'task': 'discover_and_manage_topics',
         'schedule': crontab(minute='0', hour='*'), 
     },
-    # The "fast-loop" for scraping, every 10 mins
     'fast-topic-loop': {
         'task': 'collect_hot_topics',
         'schedule': crontab(minute='*/10'),
     },
-    # --- NEW NLP TASK ---
-    # Runs every 1 minute to process raw posts
     'process-raw-posts-loop': {
         'task': 'process_raw_posts',
-        'schedule': crontab(minute='*/1'), # Run every minute
+        'schedule': crontab(minute='*/1'),
+    },
+    
+    # --- NEW: AGGREGATOR TASKS (PHASE 3B) ---
+    'aggregate-to-timescale-loop': {
+        'task': 'aggregate_to_timescale',
+        'schedule': crontab(minute='*/5'), # Run every 5 minutes
+    },
+    'index-to-elasticsearch-loop': {
+        'task': 'index_to_elasticsearch',
+        'schedule': crontab(minute='*/5'), # Run every 5 minutes
     }
 }
+
+# ... (app.conf.update is unchanged) ...
 
 app.conf.update(
     task_serializer='json',
