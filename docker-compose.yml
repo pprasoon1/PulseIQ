@@ -22,6 +22,64 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8001
     volumes:
       - ./services/nlp-service:/app # Mount code for live-reloading
+  
+  # --- NEW: TimescaleDB (PostgreSQL + Timescale) ---
+  timescaledb:
+    image: timescaledb/timescaledb:latest-pg14
+    container_name: pulseiq-timescaledb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres # Use a strong password in prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init-timescale/init.sql:/docker-entrypoint-initdb.d/init.sql # Runs init script
+      - timescale-data:/var/lib/postgresql/data # Persists data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- NEW: Elasticsearch ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: pulseiq-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # Easiest for development
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Limit memory usage
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data # Persists data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9200/_cluster/health?wait_for_status=yellow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- NEW: API Service (The Hub) ---
+  api-service:
+    container_name: pulseiq-api-service
+    build:
+      context: ./services/api-service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - TIMESCALE_DB_URL=postgresql://postgres:postgres@timescaledb:5432/pulseiq_api_db
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      redis:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy # Wait for DB to be ready
+      elasticsearch:
+        condition: service_healthy # Wait for ES to be ready
+    volumes:
+      - ./services/api-service/app:/app/app
 
   # NEW: The scheduler for our autonomous engine
   ingestion-beat:
@@ -38,6 +96,8 @@ services:
     depends_on:
       - redis
       - nlp-service
+      - timescaledb   # <-- ADD THIS
+      - elasticsearch # <-- ADD THIS
     volumes:
       - ./services/ingestion_service:/app
 
@@ -59,8 +119,14 @@ services:
       - redis
       - mongo
       - nlp-service
+      - timescaledb   # <-- ADD THIS
+      - elasticsearch # <-- ADD THIS
     volumes:
       - ./services/ingestion_service:/app
 
 volumes:
   mongo-data:
+  timescale-data: # <-- NEW PERSISTENT VOLUME
+  es-data:        # <-- NEW PERSISTENT VOLUME
+
+

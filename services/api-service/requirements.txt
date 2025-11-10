@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pydantic
+redis
+celery
+# --- DB Drivers ---
+psycopg2-binary   # For PostgreSQL/Timescale
+elasticsearch     # For Elasticsearch

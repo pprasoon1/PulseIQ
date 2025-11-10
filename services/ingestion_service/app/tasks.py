@@ -31,7 +31,29 @@ except Exception as e:
     print(f"Failed to connect to Redis: {e}")
 
 # ... (TIER definitions and Scraper initializations are unchanged) ...
-TIER_1_TOPICS = {"Tesla", "Apple", "iPhone 16", "Elon Musk", "OpenAI", "ChatGPT", "NVIDIA"}
+TIER_1_TOPICS = {"Reliance Industries",
+    "Jio",
+    "Tata Group",
+    "Infosys",
+    "Wipro",
+    "HDFC Bank",
+    "Adani Group",
+    "Zomato",
+    "Swiggy",
+    "Paytm",
+    "Byju’s",
+    "Ola Electric",
+    "Ather Energy",
+    "Airtel",
+    "LIC",
+    "ISRO",
+    "Nykaa",
+    "Hindustan Unilever",
+    "Flipkart",
+    "MakeMyTrip",
+    "Delhi",
+    "Mumbai",
+    "Bengaluru" }
 TIER_2_REDIS_KEY = "hot_topics"
 TIER_3_REDIS_KEY = "priority_topics"
 
@@ -39,9 +61,6 @@ reddit_scraper = RedditScraper()
 gnews_scraper = GNewsScraper()
 twitter_scraper = TwitterScraper()
 yc_scraper = YCScraper()
-
-# ... ('discover_and_manage_topics', 'collect_hot_topics', 'start_user_topic_collection' are unchanged) ...
-# (We'll skip them here for brevity, but leave them in your file)
 
 @app.task(name='discover_and_manage_topics')
 def discover_and_manage_topics():
