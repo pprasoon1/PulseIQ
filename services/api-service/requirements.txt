@@ -4,5 +4,5 @@ pydantic
 redis
 celery
 # --- DB Drivers ---
-psycopg2-binary   # For PostgreSQL/Timescale
-elasticsearch     # For Elasticsearch
+psycopg2-binary   
+elasticsearch==8.11.1
