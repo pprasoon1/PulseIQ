@@ -35,6 +35,11 @@ app.conf.beat_schedule = {
     'index-to-elasticsearch-loop': {
         'task': 'index_to_elasticsearch',
         'schedule': crontab(minute='*/5'), # Run every 5 minutes
+    },
+    # --- NEW: CRISIS ALERT TASK (PHASE 3E) ---
+    'analyze-for-crisis': {
+        'task': 'analyze_for_crisis',
+        'schedule': crontab(minute='*/15'), # Run every 15 minutes
     }
 }
 
